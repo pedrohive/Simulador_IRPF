@@ -37,7 +37,7 @@ public class CalculadoraIrpf {
                 break;
             }
         }
-        imposto -= redutor(salario);
+        imposto = imposto - redutor(salario);
 
         return Arredondamento.dinheiro(Math.max(imposto, 0));
     }
