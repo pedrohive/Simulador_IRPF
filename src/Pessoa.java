@@ -1,7 +1,7 @@
 public class Pessoa {
 
     private String nome;
-    private String cpf;
+    private double cpf;
     private double salario;
     private int dependentes;
 
@@ -13,11 +13,11 @@ public class Pessoa {
         this.nome = nome;
     }
 
-    public String getCpf() {
+    public double getCpf() {
         return cpf;
     }
 
-    public void setCpf(String cpf) {
+    public void setCpf(double cpf) {
         this.cpf = cpf;
     }
 
@@ -39,6 +39,13 @@ public class Pessoa {
     public void setDependentes(int dependentes) {
         if (dependentes < 0) {
             throw new IllegalArgumentException("Número de dependentes não pode ser negativo.");
+        }
+        this.dependentes = dependentes;
+    }
+
+    public void setDependentes(double cpf) {
+        if (cpf < 0) {
+            throw new IllegalArgumentException("Número de CPF não pode ser negativo.");
         }
         this.dependentes = dependentes;
     }
