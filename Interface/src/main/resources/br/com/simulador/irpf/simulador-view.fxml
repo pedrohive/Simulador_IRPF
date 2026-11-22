@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.Group?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Hyperlink?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Arc?>
+<?import javafx.scene.shape.Circle?>
+
+<HBox styleClass="raiz" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="br.com.simulador.irpf.SimuladorController">
+
+  <!-- ================= Barra lateral ================= -->
+  <VBox styleClass="lateral" spacing="4" minWidth="220" prefWidth="220">
+    <HBox spacing="10" alignment="CENTER_LEFT" styleClass="marca">
+      <StackPane styleClass="logo"><Label text="\%" styleClass="logo-texto"/></StackPane>
+      <VBox>
+        <Label text="Simulador" styleClass="marca-titulo"/>
+        <Label text="IRPF 2026" styleClass="marca-sub"/>
+      </VBox>
+    </HBox>
+
+    <Label text="NAVEGAÇÃO" styleClass="menu-secao"/>
+    <Label fx:id="menuSimular" text="◉   Simular salário" styleClass="menu-item" maxWidth="Infinity" onMouseClicked="#irSimular"/>
+    <Label fx:id="menuTabela" text="▤   Tabela de faixas" styleClass="menu-item" maxWidth="Infinity" onMouseClicked="#irTabela"/>
+    <Label fx:id="menuComo" text="?   Como funciona" styleClass="menu-item" maxWidth="Infinity" onMouseClicked="#irComo"/>
+
+    <Region VBox.vgrow="ALWAYS"/>
+
+    <VBox styleClass="dica-lateral" spacing="4">
+      <Label text="Dica" styleClass="dica-titulo"/>
+      <Label fx:id="textoDica" styleClass="dica-texto" wrapText="true"/>
+    </VBox>
+    <Label text="Simulação educacional · Projeto A3" styleClass="rodape-lateral" wrapText="true"/>
+  </VBox>
+
+  <!-- ================= Páginas ================= -->
+  <StackPane HBox.hgrow="ALWAYS">
+
+    <!-- Página: Simular -->
+    <ScrollPane fx:id="paginaSimular" fitToWidth="true" styleClass="rolagem">
+      <VBox spacing="20" styleClass="conteudo">
+        <VBox spacing="4">
+          <Label text="Olá! Vamos simular seu salário" styleClass="titulo"/>
+          <Label text="Descubra quanto vai para o INSS, quanto vai para o Imposto de Renda e quanto fica com você."
+                 styleClass="subtitulo" wrapText="true"/>
+        </VBox>
+
+        <!-- Formulário em faixa -->
+        <VBox styleClass="cartao" spacing="14">
+          <GridPane hgap="16" vgap="6">
+            <columnConstraints>
+              <ColumnConstraints hgrow="ALWAYS" percentWidth="34"/>
+              <ColumnConstraints hgrow="ALWAYS" percentWidth="24"/>
+              <ColumnConstraints hgrow="ALWAYS" percentWidth="24"/>
+              <ColumnConstraints hgrow="ALWAYS" percentWidth="18"/>
+            </columnConstraints>
+            <Label text="Nome" styleClass="rotulo" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
+            <Label text="CPF" styleClass="rotulo" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
+            <Label text="Salário bruto (R$)" styleClass="rotulo" GridPane.columnIndex="2" GridPane.rowIndex="0"/>
+            <Label text="Dependentes" styleClass="rotulo" GridPane.columnIndex="3" GridPane.rowIndex="0"/>
+            <TextField fx:id="campoNome" promptText="Nome completo" onAction="#calcular" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
+            <TextField fx:id="campoCpf" promptText="000.000.000-00" onAction="#calcular" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+            <TextField fx:id="campoSalario" promptText="4.500,00" onAction="#calcular" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
+            <Spinner fx:id="campoDependentes" maxWidth="Infinity" GridPane.columnIndex="3" GridPane.rowIndex="1"/>
+          </GridPane>
+          <HBox spacing="10" alignment="CENTER_LEFT">
+            <CheckBox fx:id="campoDescontarInss" text="Descontar INSS (CLT)" selected="true" styleClass="opcao-inss"/>
+            <Label fx:id="erro" styleClass="erro" wrapText="true"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Limpar" styleClass="botao-secundario" onAction="#limpar"/>
+            <Button text="Calcular" defaultButton="true" styleClass="botao-primario" onAction="#calcular"/>
+          </HBox>
+        </VBox>
+
+        <StackPane>
+          <!-- Estado vazio -->
+          <HBox fx:id="painelVazio" styleClass="vazio" spacing="16" alignment="CENTER">
+            <StackPane styleClass="vazio-icone"><Label text="↑" styleClass="vazio-icone-texto"/></StackPane>
+            <VBox spacing="2">
+              <Label text="Seu resultado aparece aqui" styleClass="vazio-titulo"/>
+              <Label text="Preencha os campos acima e clique em Calcular (ou aperte Enter)." styleClass="vazio-texto"/>
+            </VBox>
+          </HBox>
+
+          <!-- Resultado -->
+          <HBox fx:id="painelResultado" spacing="20">
+
+            <!-- Esquerda: rosca -->
+            <VBox styleClass="cartao" spacing="14" alignment="TOP_CENTER" minWidth="300" prefWidth="320" maxWidth="340">
+              <Label fx:id="textoContribuinte" styleClass="contribuinte"/>
+              <StackPane minWidth="220" minHeight="220">
+                <Circle radius="88" styleClass="rosca-fundo"/>
+                <Group>
+                  <Arc fx:id="arcLiquido" radiusX="88" radiusY="88" type="OPEN" styleClass="rosca, rosca-liquido"/>
+                  <Arc fx:id="arcInss" radiusX="88" radiusY="88" type="OPEN" styleClass="rosca, rosca-inss"/>
+                  <Arc fx:id="arcIr" radiusX="88" radiusY="88" type="OPEN" styleClass="rosca, rosca-ir"/>
+                </Group>
+                <VBox alignment="CENTER">
+                  <Label text="Líquido" styleClass="rosca-rotulo"/>
+                  <Label fx:id="resLiquido" styleClass="rosca-valor"/>
+                  <Label fx:id="resPercLiquido" styleClass="rosca-perc"/>
+                </VBox>
+              </StackPane>
+              <VBox spacing="6" styleClass="legenda-caixa" maxWidth="Infinity">
+                <Label fx:id="legLiquido" styleClass="legenda, legenda-liquido"/>
+                <Label fx:id="legInss" styleClass="legenda, legenda-inss"/>
+                <Label fx:id="legIr" styleClass="legenda, legenda-ir"/>
+              </VBox>
+              <Label fx:id="resCadaCem" styleClass="cada-cem" wrapText="true" maxWidth="Infinity"/>
+            </VBox>
+
+            <!-- Direita: indicadores + detalhamento -->
+            <VBox spacing="16" HBox.hgrow="ALWAYS">
+              <HBox spacing="12">
+                <VBox styleClass="indicador, indicador-inss" HBox.hgrow="ALWAYS" maxWidth="Infinity">
+                  <Label text="INSS" styleClass="indicador-rotulo"/>
+                  <Label fx:id="kpiInss" styleClass="indicador-valor"/>
+                  <Label fx:id="kpiInssPerc" styleClass="indicador-sub"/>
+                </VBox>
+                <VBox styleClass="indicador, indicador-ir" HBox.hgrow="ALWAYS" maxWidth="Infinity">
+                  <Label text="Imposto de Renda" styleClass="indicador-rotulo"/>
+                  <Label fx:id="kpiIr" styleClass="indicador-valor"/>
+                  <Label fx:id="kpiIrPerc" styleClass="indicador-sub"/>
+                </VBox>
+                <VBox styleClass="indicador, indicador-azul" HBox.hgrow="ALWAYS" maxWidth="Infinity">
+                  <Label text="Alíquota efetiva" styleClass="indicador-rotulo"/>
+                  <Label fx:id="kpiEfetiva" styleClass="indicador-valor"/>
+                  <Label fx:id="kpiFaixa" styleClass="indicador-sub"/>
+                </VBox>
+              </HBox>
+
+              <VBox styleClass="cartao" spacing="2">
+                <HBox alignment="CENTER_LEFT">
+                  <Label text="Como chegamos nesse valor" styleClass="titulo-cartao"/>
+                  <Region HBox.hgrow="ALWAYS"/>
+                  <Hyperlink text="Ver tabela de faixas →" styleClass="link" onAction="#irTabela"/>
+                </HBox>
+                <HBox styleClass="linha"><Label text="Salário bruto" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resBruto" styleClass="valor"/></HBox>
+                <HBox styleClass="linha"><Label text="(−) INSS" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resInss" styleClass="valor-desconto"/></HBox>
+                <HBox styleClass="linha"><Label text="Dependentes" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resDependentes" styleClass="valor"/></HBox>
+                <HBox styleClass="linha"><Label text="(−) Dedução usada no IR" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resDeducao" styleClass="valor-desconto"/></HBox>
+                <HBox styleClass="linha"><Label text="Base de cálculo do IR" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resBase" styleClass="valor"/></HBox>
+                <HBox styleClass="linha"><Label text="Alíquota da faixa" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resAliquotaFaixa" styleClass="valor"/></HBox>
+                <HBox styleClass="linha"><Label text="(−) Imposto de Renda" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resIr" styleClass="valor-desconto"/></HBox>
+                <HBox styleClass="linha"><Label text="Alíquota efetiva" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resAliquotaEfetiva" styleClass="valor"/></HBox>
+                <HBox styleClass="linha-total" alignment="CENTER_LEFT"><Label text="Salário líquido" styleClass="total-rotulo"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resLiquidoTabela" styleClass="total-valor"/></HBox>
+              </VBox>
+            </VBox>
+          </HBox>
+        </StackPane>
+      </VBox>
+    </ScrollPane>
+
+    <!-- Página: Tabela de faixas -->
+    <ScrollPane fx:id="paginaTabela" fitToWidth="true" styleClass="rolagem">
+      <VBox spacing="20" styleClass="conteudo">
+        <VBox spacing="4">
+          <Label text="Tabelas de 2026" styleClass="titulo"/>
+          <Label text="As faixas usadas pelo simulador. Os valores vêm direto das classes de cálculo."
+                 styleClass="subtitulo" wrapText="true"/>
+        </VBox>
+        <Label fx:id="avisoTabela" styleClass="aviso" wrapText="true" maxWidth="Infinity"/>
+
+        <VBox spacing="20">
+          <VBox styleClass="cartao" spacing="10">
+            <Label text="INSS – contribuição do empregado" styleClass="titulo-cartao"/>
+            <Label text="Progressiva: cada alíquota incide só sobre a parte do salário dentro da faixa."
+                   styleClass="nota" wrapText="true"/>
+            <VBox fx:id="tabelaInss" styleClass="tabela"/>
+          </VBox>
+          <VBox styleClass="cartao" spacing="10">
+            <Label text="IRRF – imposto retido na fonte" styleClass="titulo-cartao"/>
+            <Label text="Aplicada sobre a base de cálculo (salário − INSS − dependentes)."
+                   styleClass="nota" wrapText="true"/>
+            <VBox fx:id="tabelaIr" styleClass="tabela"/>
+          </VBox>
+        </VBox>
+
+        <VBox styleClass="cartao" spacing="8">
+          <Label text="Regras extras" styleClass="titulo-cartao"/>
+          <Label fx:id="regrasExtras" styleClass="item" wrapText="true"/>
+        </VBox>
+      </VBox>
+    </ScrollPane>
+
+    <!-- Página: Como funciona -->
+    <ScrollPane fx:id="paginaComo" fitToWidth="true" styleClass="rolagem">
+      <VBox spacing="20" styleClass="conteudo">
+        <VBox spacing="4">
+          <Label text="Como o cálculo funciona" styleClass="titulo"/>
+          <Label text="Do salário bruto ao líquido em quatro passos." styleClass="subtitulo"/>
+        </VBox>
+        <GridPane hgap="20" vgap="20">
+          <columnConstraints>
+            <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+            <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+          </columnConstraints>
+          <VBox styleClass="cartao, passo-cartao" spacing="8" GridPane.columnIndex="0" GridPane.rowIndex="0">
+            <Label text="1" styleClass="passo-numero, passo-inss"/>
+            <Label text="Desconta o INSS" styleClass="titulo-cartao"/>
+            <Label fx:id="passo1" styleClass="item" wrapText="true"/>
+          </VBox>
+          <VBox styleClass="cartao, passo-cartao" spacing="8" GridPane.columnIndex="1" GridPane.rowIndex="0">
+            <Label text="2" styleClass="passo-numero, passo-azul"/>
+            <Label text="Monta a base de cálculo" styleClass="titulo-cartao"/>
+            <Label fx:id="passo2" styleClass="item" wrapText="true"/>
+          </VBox>
+          <VBox styleClass="cartao, passo-cartao" spacing="8" GridPane.columnIndex="0" GridPane.rowIndex="1">
+            <Label text="3" styleClass="passo-numero, passo-ir"/>
+            <Label text="Calcula o Imposto de Renda" styleClass="titulo-cartao"/>
+            <Label fx:id="passo3" styleClass="item" wrapText="true"/>
+          </VBox>
+          <VBox styleClass="cartao, passo-cartao" spacing="8" GridPane.columnIndex="1" GridPane.rowIndex="1">
+            <Label text="4" styleClass="passo-numero, passo-liquido"/>
+            <Label text="Chega no líquido" styleClass="titulo-cartao"/>
+            <Label fx:id="passo4" styleClass="item" wrapText="true"/>
+          </VBox>
+        </GridPane>
+        <HBox>
+          <Button text="Fazer uma simulação →" styleClass="botao-primario" onAction="#irSimular"/>
+        </HBox>
+      </VBox>
+    </ScrollPane>
+
+  </StackPane>
+</HBox>

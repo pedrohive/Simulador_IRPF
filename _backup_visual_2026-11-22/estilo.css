@@ -1,0 +1,83 @@
+.root {
+    -cor-primaria: #1b5e9b;
+    -cor-primaria-escura: #144a7b;
+    -cor-fundo: #f1f4f8;
+    -cor-texto: #1f2933;
+    -cor-suave: #627d98;
+    -cor-borda: #d9e2ec;
+    -cor-liquido: #2f9e6b;
+    -cor-inss: #e0a030;
+    -cor-ir: #d64545;
+    -fx-font-family: "Segoe UI", "System";
+    -fx-font-size: 14px;
+    -fx-text-fill: -cor-texto;
+}
+
+.raiz { -fx-background-color: -cor-fundo; }
+
+.cabecalho {
+    -fx-background-color: -cor-primaria;
+    -fx-padding: 20 28 20 28;
+    -fx-spacing: 2;
+}
+.titulo { -fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: white; }
+.subtitulo { -fx-font-size: 13px; -fx-text-fill: #cfe3f5; }
+
+.rolagem, .rolagem > .viewport { -fx-background-color: transparent; -fx-background: transparent; }
+.conteudo { -fx-padding: 24 28 24 28; -fx-alignment: top-left; }
+
+.cartao {
+    -fx-background-color: white;
+    -fx-background-radius: 10;
+    -fx-border-color: -cor-borda;
+    -fx-border-radius: 10;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, rgba(16, 42, 67, 0.08), 12, 0, 0, 2);
+}
+.titulo-cartao { -fx-font-size: 17px; -fx-font-weight: bold; }
+.rotulo { -fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: -cor-suave; }
+
+.text-field, .spinner .text-field {
+    -fx-background-color: white;
+    -fx-border-color: -cor-borda;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 8 10 8 10;
+}
+.text-field:focused, .spinner:focused .text-field {
+    -fx-border-color: -cor-primaria;
+}
+.spinner { -fx-background-color: transparent; }
+
+.erro { -fx-text-fill: -cor-ir; -fx-font-size: 13px; }
+
+.botao-primario, .botao-secundario {
+    -fx-background-radius: 6;
+    -fx-padding: 9 22 9 22;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+.botao-primario { -fx-background-color: -cor-primaria; -fx-text-fill: white; }
+.botao-primario:hover { -fx-background-color: -cor-primaria-escura; }
+.botao-secundario { -fx-background-color: #e4eaf1; -fx-text-fill: -cor-texto; }
+.botao-secundario:hover { -fx-background-color: #d4dde8; }
+
+.contribuinte { -fx-text-fill: -cor-suave; }
+.valor { -fx-font-weight: bold; }
+
+.destaque {
+    -fx-background-color: #e8f6ef;
+    -fx-background-radius: 8;
+    -fx-padding: 12 16 12 16;
+}
+.destaque-rotulo { -fx-font-size: 12px; -fx-text-fill: -cor-suave; }
+.destaque-valor { -fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: -cor-liquido; }
+
+.barra { -fx-background-color: -cor-borda; -fx-background-radius: 7; }
+.seg-liquido { -fx-background-color: -cor-liquido; -fx-background-radius: 7 0 0 7; }
+.seg-inss { -fx-background-color: -cor-inss; }
+.seg-ir { -fx-background-color: -cor-ir; -fx-background-radius: 0 7 7 0; }
+
+.legenda-liquido { -fx-text-fill: -cor-liquido; }
+.legenda-inss { -fx-text-fill: -cor-inss; }
+.legenda-ir { -fx-text-fill: -cor-ir; }

@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador IRPF</title>
+<style>
+  :root {
+    --bg-primary: #05070A;
+    --bg-surface: #0B1017;
+    --bg-elevated: #111823;
+    --neon-blue: #00E5FF;
+    --neon-green: #00FF88;
+    --text-primary: #F1F5F9;
+    --text-secondary: #8B9BB4;
+    --border-subtle: rgba(0, 229, 255, 0.20);
+    --glow-blue: rgba(0, 229, 255, 0.25);
+    --glow-green: rgba(0, 255, 136, 0.22);
+    --danger: #FF5C7A;
+    --mono: "JetBrains Mono", "Consolas", monospace;
+    --ease-grow: cubic-bezier(0.22, 1, 0.36, 1);
+    --scan-angle: 0deg;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--mono);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  body { position: relative; overflow-x: hidden; overflow-y: auto; }
+
+  /* Neural network canvas: kept faint so text stays readable */
+  #net {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0.45;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    padding: 16px;
+  }
+
+  /* ---------- Panels ---------- */
+  .panel {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    box-shadow: 0 0 22px rgba(0, 229, 255, 0.06);
+  }
+
+  /* Rotating conic border (angle driven by --scan-angle) */
+  .scan-border {
+    border: 2px solid transparent;
+    background:
+      linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+      conic-gradient(from var(--scan-angle),
+        rgba(0, 229, 255, 0.05) 0deg,
+        var(--neon-blue) 70deg,
+        var(--neon-green) 130deg,
+        rgba(0, 255, 136, 0.05) 200deg,
+        rgba(0, 229, 255, 0.05) 360deg) border-box;
+  }
+  /* JavaFX's embedded WebKit has no conic-gradient: sweep a rotating linear gradient instead */
+  .no-conic .scan-border {
+    background:
+      linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+      linear-gradient(var(--scan-angle),
+        rgba(0, 229, 255, 0.12) 15%,
+        var(--neon-blue) 42%,
+        var(--neon-green) 58%,
+        rgba(0, 255, 136, 0.12) 85%) border-box;
+  }
+
+  /* Pointer-following radial glow (hover tilt cards) */
+  .tilt { transition: transform 120ms ease-out; will-change: transform; }
+  .tilt::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), var(--glow-blue), transparent 70%);
+    opacity: 0;
+    transition: opacity 200ms ease;
+    pointer-events: none;
+  }
+  .tilt.hot::before { opacity: 1; }
+
+  /* Subtle cyber scan line */
+  .scanline {
+    position: absolute;
+    left: 0; right: 0;
+    height: 90px;
+    top: -90px;
+    background: linear-gradient(to bottom, transparent, rgba(0, 229, 255, 0.07), transparent);
+    pointer-events: none;
+    animation: scan 4200ms linear infinite;
+  }
+  @keyframes scan { from { top: -90px; } to { top: 100%; } }
+
+  /* ---------- Header ---------- */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    margin-bottom: 16px;
+  }
+  .title { font-size: 18px; font-weight: 700; letter-spacing: 0.08em; color: var(--neon-blue); text-shadow: 0 0 12px var(--glow-blue); }
+  .cursor { display: inline-block; width: 0.6em; height: 1em; margin-left: 2px; background: var(--neon-blue); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  .cursor.off { display: none; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .header-right { display: flex; align-items: center; }
+  .badge {
+    display: inline-block;
+    padding: 5px 12px;
+    margin-right: 14px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+  }
+  .badge.live { color: var(--neon-green); border-color: rgba(0, 255, 136, 0.45); box-shadow: 0 0 12px var(--glow-green); }
+  .badge.live .dot { animation: pulse 1.6s ease-in-out infinite; }
+  .dot { display: inline-block; margin-right: 6px; }
+  @keyframes pulse { 50% { opacity: 0.25; } }
+
+  .scenarios button { margin-left: 8px; }
+
+  /* ---------- Buttons ---------- */
+  button { font-family: var(--mono); cursor: pointer; }
+  .btn-ghost {
+    padding: 7px 12px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    transition: border-color 150ms, box-shadow 150ms;
+  }
+  .btn-ghost:hover, .btn-ghost:focus-visible { border-color: var(--neon-blue); box-shadow: 0 0 12px var(--glow-blue); outline: none; }
+
+  .btn-neon {
+    width: 100%;
+    margin-top: 8px;
+    padding: 13px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--bg-primary);
+    background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 0 18px var(--glow-blue);
+    transition: box-shadow 150ms, transform 100ms;
+  }
+  .btn-neon:hover, .btn-neon:focus-visible { box-shadow: 0 0 26px var(--glow-green); outline: none; }
+  .btn-neon:active { transform: scale(0.98); }
+
+  /* ---------- Main grid ---------- */
+  .main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    grid-gap: 16px;
+    min-height: 560px;
+  }
+
+  /* ---------- Inputs panel ---------- */
+  .inputs { padding: 20px; }
+  .section-title { margin: 0 0 16px; font-size: 12px; letter-spacing: 0.14em; color: var(--text-secondary); text-transform: uppercase; }
+
+  .period { display: flex; margin-bottom: 18px; border: 1px solid var(--border-subtle); border-radius: 8px; overflow: hidden; }
+  .period button { flex: 1; padding: 8px 0; font-size: 12px; letter-spacing: 0.08em; color: var(--text-secondary); background: transparent; border: none; }
+  .period button.active { color: var(--bg-primary); background: var(--neon-blue); font-weight: 700; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; margin-bottom: 6px; font-size: 11px; letter-spacing: 0.08em; color: var(--text-secondary); text-transform: uppercase; }
+  .field input {
+    width: 100%;
+    padding: 11px 12px;
+    font-family: var(--mono);
+    font-size: 15px;
+    text-align: right;
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    transition: border-color 150ms, box-shadow 150ms;
+  }
+  .field input:focus { outline: none; border-color: var(--neon-blue); box-shadow: 0 0 12px var(--glow-blue); }
+  .field input.invalid { border-color: var(--danger); }
+  .hint { margin: 5px 0 0; font-size: 11px; color: var(--text-secondary); }
+
+  .error { min-height: 18px; margin: 4px 0 6px; font-size: 12px; color: var(--danger); }
+
+  /* ---------- Right column ---------- */
+  .right { display: grid; grid-template-rows: auto 1fr; grid-gap: 16px; min-width: 0; }
+
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); grid-gap: 16px; }
+  .kpi { padding: 16px 18px; }
+  .kpi-label { font-size: 11px; letter-spacing: 0.1em; color: var(--text-secondary); text-transform: uppercase; }
+  .kpi-value { margin: 8px 0 4px; font-size: 24px; font-weight: 700; text-align: right; color: var(--text-primary); }
+  .kpi-value.green { color: var(--neon-green); text-shadow: 0 0 14px var(--glow-green); }
+  .kpi-value.blue { color: var(--neon-blue); text-shadow: 0 0 14px var(--glow-blue); }
+  .kpi-sub { font-size: 11px; text-align: right; color: var(--text-secondary); }
+
+  /* ---------- Chart ---------- */
+  .chart { display: flex; flex-direction: column; padding: 20px 24px 18px; min-width: 0; }
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+  .chart-head .section-title { margin: 0; }
+  .chart-note { font-size: 11px; color: var(--text-secondary); }
+
+  .plot { position: relative; flex: 1; min-height: 260px; margin: 26px 0 0 78px; }
+  .gridline { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgba(139, 155, 180, 0.18); }
+  .gridline span { position: absolute; left: -78px; top: -8px; width: 70px; font-size: 10px; text-align: right; color: var(--text-secondary); }
+  .bars { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(4, 1fr); }
+  .col { position: relative; height: 100%; }
+  .bar {
+    position: absolute;
+    left: 20%; right: 20%; bottom: 0;
+    height: 0;
+    min-height: 2px;
+    border-radius: 6px 6px 0 0;
+    transition: height 850ms var(--ease-grow);
+  }
+  .bar.animating-off { transition: none; }
+  .bar-value {
+    position: absolute;
+    left: -30%; right: -30%;
+    top: -22px;
+    font-size: 12px;
+    text-align: center;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+  .b-gross { background: linear-gradient(to top, rgba(0, 229, 255, 0.25), var(--neon-blue)); box-shadow: 0 0 18px var(--glow-blue); }
+  .b-inss  { background: linear-gradient(to top, rgba(139, 155, 180, 0.2), #8B9BB4); }
+  .b-tax   { background: linear-gradient(to top, rgba(0, 229, 255, 0.12), #5CC8DA); }
+  .b-net   { background: linear-gradient(to top, rgba(0, 255, 136, 0.25), var(--neon-green)); box-shadow: 0 0 18px var(--glow-green); }
+
+  .labels { display: grid; grid-template-columns: repeat(4, 1fr); margin: 10px 0 0 78px; }
+  .labels div { text-align: center; font-size: 11px; letter-spacing: 0.06em; color: var(--text-secondary); text-transform: uppercase; }
+
+  .chart-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
+  .chart-foot b { color: var(--neon-green); font-weight: 700; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scanline { display: none; }
+    .cursor, .badge.live .dot { animation: none; }
+    .bar { transition: none; }
+    .tilt { transition: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="net" aria-hidden="true"></canvas>
+
+<div class="app">
+  <header class="panel header" id="header">
+    <div class="title"><span id="typed"></span><span class="cursor" id="cursor"></span></div>
+    <div class="header-right">
+      <span class="badge" id="status"><span class="dot">●</span><span id="statusText">CONECTANDO</span></span>
+      <div class="scenarios" role="group" aria-label="Cenários rápidos">
+        <button type="button" class="btn-ghost" data-scenario="exempt">ISENTO</button>
+        <button type="button" class="btn-ghost" data-scenario="middle">CLASSE MÉDIA</button>
+        <button type="button" class="btn-ghost" data-scenario="high">ALTA RENDA</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="panel scan-border inputs" aria-label="Dados da simulação">
+      <h2 class="section-title">Parâmetros</h2>
+
+      <div class="period" role="group" aria-label="Período da renda">
+        <button type="button" class="active" id="perMonthly" data-period="monthly">MENSAL</button>
+        <button type="button" id="perAnnual" data-period="annual">ANUAL</button>
+      </div>
+
+      <div class="field">
+        <label for="income" id="incomeLabel">Renda tributável mensal (R$)</label>
+        <input id="income" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </div>
+      <div class="field">
+        <label for="deductions" id="deductionsLabel">Deduções legais mensais (R$)</label>
+        <input id="deductions" type="text" inputmode="decimal" autocomplete="off" placeholder="0,00">
+        <p class="hint">Pensão alimentícia, previdência privada etc. O INSS já é calculado.</p>
+      </div>
+      <div class="field">
+        <label for="dependents">Dependentes</label>
+        <input id="dependents" type="text" inputmode="numeric" autocomplete="off" placeholder="0">
+        <p class="hint" id="depHint"></p>
+      </div>
+
+      <div class="error" id="error" role="alert"></div>
+      <button type="button" class="btn-neon" id="calc">CALCULAR</button>
+    </section>
+
+    <div class="right">
+      <section class="kpis" aria-label="Resumo">
+        <article class="panel tilt kpi" data-tilt="7">
+          <div class="kpi-label">Base tributável</div>
+          <div class="kpi-value blue" id="kBase">R$ 0,00</div>
+          <div class="kpi-sub" id="kBaseSub">após INSS e deduções</div>
+        </article>
+        <article class="panel tilt kpi" data-tilt="7">
+          <div class="kpi-label">IRRF estimado</div>
+          <div class="kpi-value green" id="kTax">R$ 0,00</div>
+          <div class="kpi-sub" id="kTaxSub">por mês</div>
+        </article>
+        <article class="panel tilt kpi" data-tilt="7">
+          <div class="kpi-label">Alíquota efetiva</div>
+          <div class="kpi-value" id="kRate">0,00%</div>
+          <div class="kpi-sub" id="kRateSub">sobre a renda bruta</div>
+        </article>
+      </section>
+
+      <section class="panel scan-border tilt chart" data-tilt="1.5" aria-label="Gráfico da simulação">
+        <div class="scanline"></div>
+        <div class="chart-head">
+          <h2 class="section-title">Para onde vai o seu salário</h2>
+          <span class="chart-note">valores mensais</span>
+        </div>
+        <div class="plot" id="plot">
+          <div class="gridline" style="bottom:100%"><span id="g100"></span></div>
+          <div class="gridline" style="bottom:75%"><span id="g75"></span></div>
+          <div class="gridline" style="bottom:50%"><span id="g50"></span></div>
+          <div class="gridline" style="bottom:25%"><span id="g25"></span></div>
+          <div class="gridline" style="bottom:0"><span id="g0">R$ 0</span></div>
+          <div class="bars">
+            <div class="col"><div class="bar b-gross" id="barGross"><div class="bar-value" id="vGross"></div></div></div>
+            <div class="col"><div class="bar b-inss" id="barInss"><div class="bar-value" id="vInss"></div></div></div>
+            <div class="col"><div class="bar b-tax" id="barTax"><div class="bar-value" id="vTax"></div></div></div>
+            <div class="col"><div class="bar b-net" id="barNet"><div class="bar-value" id="vNet"></div></div></div>
+          </div>
+        </div>
+        <div class="labels"><div>Bruto</div><div>INSS</div><div>IRRF</div><div>Líquido</div></div>
+        <div class="chart-foot">
+          <span id="footFaixa">Faça uma simulação para ver o resultado.</span>
+          <span id="footNet"></span>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // JavaFX's WebKit parses conic-gradient but its graphics backend paints nothing, so detect it explicitly
+  var conicPaints = window.CSS && CSS.supports && CSS.supports('background-image', 'conic-gradient(red, blue)')
+    && navigator.userAgent.indexOf('JavaFX') < 0;
+  if (!conicPaints) {
+    document.documentElement.className += ' no-conic';
+  }
+
+  // ---------- Formatting / parsing (pt-BR) ----------
+  function money(n) {
+    var neg = n < 0;
+    var parts = Math.abs(n).toFixed(2).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return (neg ? '-' : '') + 'R$ ' + parts[0] + ',' + parts[1];
+  }
+  function plain(n) {
+    var parts = n.toFixed(2).split('.');
+    return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + parts[1];
+  }
+  function pct(fraction) { return (fraction * 100).toFixed(2).replace('.', ',') + '%'; }
+  function pct1(fraction) { return (fraction * 100).toFixed(1).replace('.', ',') + '%'; }
+
+  /** "7.500,00", "7500,5", "7500.50", "R$ 7.500" -> number; empty -> 0; invalid -> NaN. */
+  function parseBr(text) {
+    var t = String(text || '').replace(/R\$/g, '').replace(/\s/g, '');
+    if (t === '') return 0;
+    if (t.indexOf(',') >= 0) {
+      t = t.replace(/\./g, '').replace(',', '.');
+    } else if (/^\d{1,3}(\.\d{3})+$/.test(t)) {
+      t = t.replace(/\./g, '');
+    }
+    if (!/^\d+(\.\d+)?$/.test(t)) return NaN;
+    return parseFloat(t);
+  }
+
+  // ---------- Elements ----------
+  function $(id) { return document.getElementById(id); }
+  var el = {
+    income: $('income'), deductions: $('deductions'), dependents: $('dependents'),
+    error: $('error'), calc: $('calc'), depHint: $('depHint'),
+    incomeLabel: $('incomeLabel'), deductionsLabel: $('deductionsLabel'),
+    perMonthly: $('perMonthly'), perAnnual: $('perAnnual'),
+    status: $('status'), statusText: $('statusText'),
+    kBase: $('kBase'), kBaseSub: $('kBaseSub'), kTax: $('kTax'), kTaxSub: $('kTaxSub'),
+    kRate: $('kRate'), kRateSub: $('kRateSub'),
+    footFaixa: $('footFaixa'), footNet: $('footNet')
+  };
+  var bars = {
+    gross: { bar: $('barGross'), val: $('vGross') },
+    inss: { bar: $('barInss'), val: $('vInss') },
+    tax: { bar: $('barTax'), val: $('vTax') },
+    net: { bar: $('barNet'), val: $('vNet') }
+  };
+
+  var period = 'monthly';
+  var bridgeReady = false;
+
+  // ---------- Typewriter header ----------
+  (function typewriter() {
+    var text = 'SIMULADOR_IRPF // IRRF MENSAL';
+    var target = $('typed');
+    var cursor = $('cursor');
+    if (reduceMotion) { target.textContent = text; cursor.className = 'cursor off'; return; }
+    var i = 0;
+    var timer = setInterval(function () {
+      i++;
+      target.textContent = text.slice(0, i);
+      if (i >= text.length) clearInterval(timer);
+    }, 35);
+  })();
+
+  // ---------- Neural network canvas + conic border angle ----------
+  (function background() {
+    var canvas = $('net');
+    var ctx = canvas.getContext('2d');
+    var MAX_DIST = 145;
+    var COLORS = ['0,229,255', '0,255,136'];
+    var particles = [];
+    var w = 0, h = 0;
+
+    function resize() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+      var count = Math.max(18, Math.min(46, Math.round(w * h / 26000)));
+      while (particles.length < count) {
+        particles.push({
+          x: Math.random() * w, y: Math.random() * h,
+          vx: (Math.random() - 0.5) * 0.35, vy: (Math.random() - 0.5) * 0.35,
+          c: COLORS[Math.random() < 0.6 ? 0 : 1]
+        });
+      }
+      particles.length = count;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+      var i, j, p, q, dx, dy, d;
+      for (i = 0; i < particles.length; i++) {
+        p = particles[i];
+        for (j = i + 1; j < particles.length; j++) {
+          q = particles[j];
+          dx = p.x - q.x; dy = p.y - q.y;
+          d = Math.sqrt(dx * dx + dy * dy);
+          if (d < MAX_DIST) {
+            ctx.strokeStyle = 'rgba(' + p.c + ',' + ((1 - d / MAX_DIST) * 0.5).toFixed(3) + ')';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+          }
+        }
+      }
+      for (i = 0; i < particles.length; i++) {
+        p = particles[i];
+        ctx.fillStyle = 'rgba(' + p.c + ',0.8)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.8, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    function step(now) {
+      if (!document.hidden) {
+        for (var i = 0; i < particles.length; i++) {
+          var p = particles[i];
+          p.x += p.vx; p.y += p.vy;
+          if (p.x < 0 || p.x > w) p.vx = -p.vx;
+          if (p.y < 0 || p.y > h) p.vy = -p.vy;
+        }
+        draw();
+        // Conic border sweep: one full turn every 5 s
+        document.documentElement.style.setProperty('--scan-angle', ((now / 5000) * 360 % 360).toFixed(1) + 'deg');
+      }
+      requestAnimationFrame(step);
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+    if (reduceMotion) { draw(); } else { requestAnimationFrame(step); }
+  })();
+
+  // ---------- 3D tilt + pointer glow ----------
+  (function tilt() {
+    if (reduceMotion) return;
+    var cards = document.querySelectorAll('.tilt');
+    Array.prototype.forEach.call(cards, function (card) {
+      var max = parseFloat(card.getAttribute('data-tilt')) || 7;
+      card.addEventListener('mousemove', function (e) {
+        var r = card.getBoundingClientRect();
+        var x = (e.clientX - r.left) / r.width;
+        var y = (e.clientY - r.top) / r.height;
+        card.style.transform = 'perspective(900px) rotateX(' + ((0.5 - y) * 2 * max).toFixed(2) +
+          'deg) rotateY(' + ((x - 0.5) * 2 * max).toFixed(2) + 'deg)';
+        card.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+        card.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+        card.className = card.className.indexOf('hot') < 0 ? card.className + ' hot' : card.className;
+      });
+      card.addEventListener('mouseleave', function () {
+        card.style.transform = '';
+        card.className = card.className.replace(/\s*hot/, '');
+      });
+    });
+  })();
+
+  // ---------- Count-up tween for KPI numbers ----------
+  function easeOut(t) { return 1 - Math.pow(1 - t, 4); } // close to the cubic-bezier(0.22,1,0.36,1) feel
+  function tween(from, to, format, node) {
+    if (reduceMotion) { node.textContent = format(to); return; }
+    var start = null;
+    function frame(now) {
+      if (start === null) start = now;
+      var t = Math.min(1, (now - start) / 850);
+      node.textContent = format(from + (to - from) * easeOut(t));
+      if (t < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Chart ----------
+  function setBars(values) {
+    var max = Math.max(values.gross, 1);
+    var keys = ['gross', 'inss', 'tax', 'net'];
+    var i, k;
+    // Start from zero (no transition), force a reflow, then grow
+    for (i = 0; i < keys.length; i++) {
+      bars[keys[i]].bar.className = bars[keys[i]].bar.className.replace(/\s*animating-off/, '') + ' animating-off';
+      bars[keys[i]].bar.style.height = '0%';
+    }
+    void $('plot').offsetHeight;
+    for (i = 0; i < keys.length; i++) {
+      k = keys[i];
+      bars[k].bar.className = bars[k].bar.className.replace(/\s*animating-off/, '');
+      bars[k].bar.style.height = (values[k] / max * 100).toFixed(2) + '%';
+      bars[k].val.textContent = money(values[k]);
+    }
+    $('g100').textContent = plain(max);
+    $('g75').textContent = plain(max * 0.75);
+    $('g50').textContent = plain(max * 0.5);
+    $('g25').textContent = plain(max * 0.25);
+  }
+
+  var shown = { base: 0, tax: 0, rate: 0 };
+
+  // ---------- Java -> JS ----------
+  window.applySimulationFromJava = function (payload) {
+    var r = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    if (!r.ok) {
+      showError(r.message || 'Não foi possível calcular.');
+      return;
+    }
+    clearError();
+    el.depHint.textContent = 'Cada dependente reduz ' + money(r.deductionPerDependent) + ' da base do IR.';
+    setBars({ gross: r.gross, inss: r.inss, tax: r.tax, net: r.net });
+
+    tween(shown.base, r.taxableBase, money, el.kBase);
+    tween(shown.tax, r.tax, money, el.kTax);
+    tween(shown.rate, r.effectiveRate, pct, el.kRate);
+    shown = { base: r.taxableBase, tax: r.tax, rate: r.effectiveRate };
+
+    var deducted = r.inss + r.dependentsDeduction + r.otherDeductions;
+    el.kBaseSub.textContent = 'renda − ' + money(deducted) + ' de deduções';
+    el.kTaxSub.textContent = r.tax === 0 ? 'isento neste cenário' : money(r.tax * 12) + ' por ano';
+    el.kRateSub.textContent = 'faixa nominal de ' + pct1(r.bracketRate);
+    el.footFaixa.textContent = 'INSS ' + money(r.inss) + '  ·  ' + r.dependents + ' dependente(s)  ·  deduções ' + money(r.otherDeductions);
+    el.footNet.innerHTML = 'Líquido: <b>' + money(r.net) + '</b> (' + pct1(r.gross > 0 ? r.net / r.gross : 0) + ' do bruto)';
+  };
+
+  // ---------- Form handling ----------
+  function showError(msg) { el.error.textContent = '⚠ ' + msg; }
+  function clearError() {
+    el.error.textContent = '';
+    el.income.className = el.deductions.className = el.dependents.className = '';
+  }
+  function mark(input) { input.className = 'invalid'; input.focus(); }
+
+  function calculate() {
+    clearError();
+    if (!bridgeReady || !window.javaBridge) {
+      showError('Ponte com o Java indisponível.');
+      return;
+    }
+    var income = parseBr(el.income.value);
+    var deductions = parseBr(el.deductions.value);
+    var depText = el.dependents.value.replace(/\s/g, '');
+    var deps = depText === '' ? 0 : (/^\d+$/.test(depText) ? parseInt(depText, 10) : NaN);
+
+    if (isNaN(income)) { mark(el.income); showError('Renda inválida. Use o formato 7.500,00.'); return; }
+    if (income <= 0) { mark(el.income); showError('Informe a renda tributável.'); return; }
+    if (isNaN(deductions)) { mark(el.deductions); showError('Deduções inválidas. Use o formato 500,00.'); return; }
+    if (isNaN(deps) || deps > 99) { mark(el.dependents); showError('Dependentes: informe um número entre 0 e 99.'); return; }
+
+    // The Java side always works with monthly values
+    var factor = period === 'annual' ? 12 : 1;
+    window.javaBridge.calculateFromWeb(income / factor, deductions / factor, deps);
+  }
+
+  function setPeriod(next) {
+    if (next === period) return;
+    var factor = next === 'annual' ? 12 : 1 / 12;
+    [el.income, el.deductions].forEach(function (input) {
+      var v = parseBr(input.value);
+      if (!isNaN(v) && v > 0) input.value = plain(v * factor);
+    });
+    period = next;
+    var word = next === 'annual' ? 'anual' : 'mensal';
+    el.incomeLabel.textContent = 'Renda tributável ' + word + ' (R$)';
+    el.deductionsLabel.textContent = 'Deduções legais ' + (next === 'annual' ? 'anuais' : 'mensais') + ' (R$)';
+    el.perMonthly.className = next === 'monthly' ? 'active' : '';
+    el.perAnnual.className = next === 'annual' ? 'active' : '';
+  }
+
+  function formatOnBlur(input) {
+    input.addEventListener('blur', function () {
+      var v = parseBr(input.value);
+      if (!isNaN(v) && input.value.trim() !== '') input.value = plain(v);
+    });
+  }
+  formatOnBlur(el.income);
+  formatOnBlur(el.deductions);
+
+  el.calc.addEventListener('click', calculate);
+  [el.income, el.deductions, el.dependents].forEach(function (input) {
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') calculate(); });
+    input.addEventListener('input', function () { input.className = ''; });
+  });
+  el.perMonthly.addEventListener('click', function () { setPeriod('monthly'); });
+  el.perAnnual.addEventListener('click', function () { setPeriod('annual'); });
+
+  var SCENARIOS = {
+    exempt: { income: 4500, deductions: 0, deps: 0 },
+    middle: { income: 8000, deductions: 0, deps: 1 },
+    high: { income: 20000, deductions: 500, deps: 2 }
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-scenario]'), function (btn) {
+    btn.addEventListener('click', function () {
+      var s = SCENARIOS[btn.getAttribute('data-scenario')];
+      var factor = period === 'annual' ? 12 : 1; // scenarios are monthly; scale to the active period
+      el.income.value = plain(s.income * factor);
+      el.deductions.value = s.deductions ? plain(s.deductions * factor) : '';
+      el.dependents.value = String(s.deps);
+      calculate();
+    });
+  });
+
+  // ---------- Java bridge handshake ----------
+  window.onJavaBridgeReady = function () {
+    bridgeReady = true;
+    el.status.className = 'badge live';
+    el.statusText.textContent = 'AO VIVO';
+    // Startup run so the chart grows in right away
+    el.income.value = plain(7500);
+    el.dependents.value = '0';
+    calculate();
+  };
+
+  // Not inside JavaFX (e.g. opened in a plain browser): say so instead of failing silently
+  setTimeout(function () {
+    if (!bridgeReady) el.statusText.textContent = 'SEM PONTE JAVA';
+  }, 1500);
+})();
+</script>
+</body>
+</html>
