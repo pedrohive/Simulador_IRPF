@@ -1,7 +1,7 @@
 public class Pessoa {
 
     private String nome;
-    private double cpf;
+    private String cpf;
     private double salario;
     private int dependentes;
 
@@ -13,12 +13,8 @@ public class Pessoa {
         this.nome = nome;
     }
 
-    public double getCpf() {
+    public String getCpf() {
         return cpf;
-    }
-
-    public void setCpf(double cpf) {
-        this.cpf = cpf;
     }
 
     public double getSalario() {
@@ -43,10 +39,11 @@ public class Pessoa {
         this.dependentes = dependentes;
     }
 
-    public void setDependentes(double cpf) {
-        if (cpf < 0) {
-            throw new IllegalArgumentException("Número de CPF não pode ser negativo.");
+    public void setCpf(String cpf) {
+        String digitos = cpf == null ? "" : cpf.replaceAll("[.\\-\\s]", "");
+        if (!digitos.matches("\\d{11}")) {
+            throw new IllegalArgumentException("CPF deve conter 11 dígitos numéricos.");
         }
-        this.dependentes = dependentes;
+        this.cpf = digitos;
     }
 }

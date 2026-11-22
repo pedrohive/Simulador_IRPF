@@ -29,8 +29,15 @@ public class Main {
         System.out.print("Nome: ");
         p.setNome(sc.next());
 
-        System.out.print("CPF: ");
-        p.setCpf(sc.next());
+        while (true) {
+            try {
+                System.out.print("CPF (11 dígitos): ");
+                p.setCpf(sc.next());
+                break;
+            } catch (IllegalArgumentException e) {
+                System.out.println(e.getMessage());
+            }
+        }
 
         while (true) {
             try {
