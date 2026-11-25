@@ -5,6 +5,10 @@ import br.com.simulador.irpf.calculos.Simulacao;
 
 import static br.com.simulador.irpf.calculos.Arredondamento.duasCasas;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.Locale;
 import java.util.Scanner;
 
@@ -20,7 +24,7 @@ public class ConsoleApp {
             Pessoa p = lerPessoa(sc);
             System.out.print("Calcular 1) salário mensal ou 2) 13º salário? (1/2): ");
             if (sc.next().equals("2")) {
-                exibirDecimoTerceiro(p, lerMeses(sc));
+                exibirDecimoTerceiro(p, lerAdmissao(sc));
             } else {
                 System.out.print("Descontar INSS (CLT)? (s/n): ");
                 boolean descontarInss = !sc.next().equalsIgnoreCase("n");
@@ -113,28 +117,33 @@ public class ConsoleApp {
         System.out.printf("Salário líquido:   R$ %,.2f%n", duasCasas(s.liquido()));
     }
 
-    private static int lerMeses(Scanner sc) {
+    private static final DateTimeFormatter DATA = DateTimeFormatter.ofPattern("dd/MM/uuuu")
+            .withResolverStyle(ResolverStyle.STRICT);
+
+    /** Pede a data de admissão até vir uma data válida que dê direito a algum 13º proporcional. */
+    private static LocalDate lerAdmissao(Scanner sc) {
         while (true) {
-            System.out.print("Meses trabalhados no ano (1 a 12): ");
+            System.out.print("Data de admissão (dd/mm/aaaa): ");
             try {
-                int meses = sc.nextInt();
-                if (meses >= 1 && meses <= DecimoTerceiro.MESES_NO_ANO) {
-                    return meses;
-                }
-                System.out.println("Informe um número de 1 a 12.");
-            } catch (java.util.InputMismatchException e) {
-                sc.next();
-                System.out.println("Valor inválido.");
+                LocalDate admissao = LocalDate.parse(sc.next(), DATA);
+                DecimoTerceiro.mesesTrabalhados(admissao, LocalDate.now());
+                return admissao;
+            } catch (DateTimeParseException e) {
+                System.out.println("Data inválida. Use o formato dd/mm/aaaa.");
+            } catch (IllegalArgumentException e) {
+                System.out.println(e.getMessage());
             }
         }
     }
 
-    private static void exibirDecimoTerceiro(Pessoa p, int meses) {
-        DecimoTerceiro d = DecimoTerceiro.calcular(p.getSalario(), meses, p.getDependentes());
+    private static void exibirDecimoTerceiro(Pessoa p, LocalDate admissao) {
+        DecimoTerceiro d = DecimoTerceiro.calcular(p.getSalario(), admissao, LocalDate.now(), p.getDependentes());
+        int meses = d.mesesTrabalhados();
         Simulacao s = d.calculo();
 
         System.out.println("\n--- Resultado: 13º salário ---");
         System.out.printf("Contribuinte:      %s (CPF %s)%n", p.getNome(), p.getCpf());
+        System.out.printf("Admissão:          %s (%d meses no ano)%n", admissao.format(DATA), meses);
         System.out.printf("13º bruto:         R$ %,.2f (%d/12 de R$ %,.2f)%n",
                 duasCasas(d.valorBruto()), meses, duasCasas(d.salarioMensal()));
         System.out.printf("INSS:              R$ %,.2f%n", duasCasas(s.inss()));

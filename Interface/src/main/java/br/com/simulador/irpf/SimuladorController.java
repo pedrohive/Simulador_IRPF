@@ -17,6 +17,7 @@ import javafx.beans.property.SimpleDoubleProperty;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
@@ -30,10 +31,15 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Arc;
 import javafx.util.Duration;
+import javafx.util.StringConverter;
 
 import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.text.ParsePosition;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.List;
 import java.util.Locale;
 
@@ -42,6 +48,8 @@ public class SimuladorController {
     private static final Locale PT_BR = Locale.of("pt", "BR");
     private static final NumberFormat MOEDA = NumberFormat.getCurrencyInstance(PT_BR);
     private static final NumberFormat NUMERO = NumberFormat.getNumberInstance(PT_BR);
+    private static final DateTimeFormatter DATA = DateTimeFormatter.ofPattern("dd/MM/uuuu")
+            .withResolverStyle(ResolverStyle.STRICT);
     private static final String CLASSE_ERRO = "campo-erro";
     private static final String CLASSE_ATIVO = "menu-ativo";
     private static final String CLASSE_FAIXA_ATUAL = "faixa-atual";
@@ -88,8 +96,8 @@ public class SimuladorController {
     @FXML private CheckBox campoDescontarInss;
     @FXML private RadioButton opcaoMensal;
     @FXML private RadioButton opcaoDecimoTerceiro;
-    @FXML private HBox grupoMeses;
-    @FXML private Spinner<Integer> campoMeses;
+    @FXML private HBox grupoAdmissao;
+    @FXML private DatePicker campoAdmissao;
     @FXML private Label erro;
 
     // Resultado
@@ -238,18 +246,33 @@ public class SimuladorController {
             if (ultima != null) calcular();
         });
 
-        // 13º: meses trabalhados (1 a 12) só aparecem quando o 13º está escolhido
-        campoMeses.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(
-                1, DecimoTerceiro.MESES_NO_ANO, DecimoTerceiro.MESES_NO_ANO));
-        grupoMeses.visibleProperty().bind(opcaoDecimoTerceiro.selectedProperty());
-        grupoMeses.managedProperty().bind(opcaoDecimoTerceiro.selectedProperty());
+        // 13º: a data de admissão (que define os meses proporcionais) só aparece quando o 13º está escolhido
+        campoAdmissao.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(LocalDate data) {
+                return data == null ? "" : data.format(DATA);
+            }
+
+            @Override
+            public LocalDate fromString(String texto) {
+                try {
+                    return texto == null || texto.isBlank() ? null : LocalDate.parse(texto.strip(), DATA);
+                } catch (DateTimeParseException e) {
+                    return null; // o erro aparece ao calcular
+                }
+            }
+        });
+        grupoAdmissao.visibleProperty().bind(opcaoDecimoTerceiro.selectedProperty());
+        grupoAdmissao.managedProperty().bind(opcaoDecimoTerceiro.selectedProperty());
         opcaoDecimoTerceiro.selectedProperty().addListener((o, a, n) -> {
             atualizarTipoCalculo();
             if (ultima != null) calcular();
         });
-        campoMeses.valueProperty().addListener((o, a, n) -> {
+        campoAdmissao.valueProperty().addListener((o, a, n) -> {
+            desmarcar(campoAdmissao);
             if (ultima != null) calcular();
         });
+        campoAdmissao.getEditor().textProperty().addListener((o, a, n) -> desmarcar(campoAdmissao));
         atualizarTipoCalculo();
     }
 
@@ -281,8 +304,13 @@ public class SimuladorController {
             validar(campoCpf, () -> p.setCpf(campoCpf.getText()));
             validar(campoSalario, () -> p.setSalario(lerSalario()));
             validar(campoDependentes, () -> p.setDependentes(lerDependentes()));
+            int[] meses = {0};
+            if (opcaoDecimoTerceiro.isSelected()) {
+                validar(campoAdmissao, () ->
+                        meses[0] = DecimoTerceiro.mesesTrabalhados(lerAdmissao(), LocalDate.now()));
+            }
 
-            exibirResultado(p);
+            exibirResultado(p, meses[0]);
             esconderErro();
         } catch (IllegalArgumentException e) {
             mostrarErro(e.getMessage());
@@ -300,7 +328,8 @@ public class SimuladorController {
         campoDependentes.getValueFactory().setValue(0);
         ultima = null; // antes de mexer nas opções, para não recalcular
         opcaoMensal.setSelected(true);
-        campoMeses.getValueFactory().setValue(DecimoTerceiro.MESES_NO_ANO);
+        campoAdmissao.setValue(null);
+        campoAdmissao.getEditor().clear();
         campoDescontarInss.setSelected(true);
         limparMarcacoes();
         esconderErro();
@@ -329,6 +358,7 @@ public class SimuladorController {
         desmarcar(campoCpf);
         desmarcar(campoSalario);
         desmarcar(campoDependentes);
+        desmarcar(campoAdmissao);
     }
 
     private void mostrarErro(String mensagem) {
@@ -355,6 +385,19 @@ public class SimuladorController {
         return valor.doubleValue();
     }
 
+    /** Lê a data digitada (dd/mm/aaaa) ou escolhida no calendário. */
+    private LocalDate lerAdmissao() {
+        String texto = campoAdmissao.getEditor().getText();
+        if (texto == null || texto.isBlank()) {
+            throw new IllegalArgumentException("Informe a data de admissão.");
+        }
+        try {
+            return LocalDate.parse(texto.strip(), DATA);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Data de admissão inválida. Use o formato dd/mm/aaaa.");
+        }
+    }
+
     private int lerDependentes() {
         String texto = campoDependentes.getEditor().getText();
         try {
@@ -368,10 +411,10 @@ public class SimuladorController {
     // Resultado
     // =====================================================================
 
-    private void exibirResultado(Pessoa p) {
+    private void exibirResultado(Pessoa p, int mesesTrabalhados) {
         boolean decimo = opcaoDecimoTerceiro.isSelected();
         DecimoTerceiro d = decimo
-                ? DecimoTerceiro.calcular(p.getSalario(), campoMeses.getValue(), p.getDependentes())
+                ? DecimoTerceiro.calcular(p.getSalario(), mesesTrabalhados, p.getDependentes())
                 : null;
         Simulacao s = decimo
                 ? d.calculo()
@@ -586,7 +629,8 @@ public class SimuladorController {
                 + "•  Quem ganha até " + isento + " por mês fica isento de IR (Lei 15.270/2025).\n"
                 + "•  Entre " + isento + " e " + redutor + " o imposto recebe uma redução gradual.\n"
                 + "•  Acima de " + redutor + " vale a tabela progressiva normal.\n"
-                + "•  13º salário: calculado separado do mês, com a mesma tabela e o mesmo redutor, mas sem "
+                + "•  13º salário: proporcional à data de admissão (mês com 15 dias ou mais trabalhados conta). "
+                + "Calculado separado do mês, com a mesma tabela e o mesmo redutor, mas sem "
                 + "desconto simplificado (só INSS + dependentes). A 1ª parcela sai sem descontos e a 2ª leva "
                 + "todo o INSS e o IR.");
 
