@@ -50,7 +50,16 @@ public class CalculadoraIrpf {
 
     /** Dedução abatida do salário: a maior entre as deduções legais e o desconto simplificado. */
     public static double deducaoUtilizada(double inss, int dependentes) {
-        return Math.max(deducoesLegais(inss, dependentes), DESCONTO_SIMPLIFICADO);
+        return deducaoUtilizada(inss, dependentes, true);
+    }
+
+    /**
+     * Dedução abatida do rendimento. Com {@code permiteSimplificado} = false (13º salário, que tem
+     * tributação exclusiva na fonte) só valem INSS + dependentes.
+     */
+    public static double deducaoUtilizada(double inss, int dependentes, boolean permiteSimplificado) {
+        double legais = deducoesLegais(inss, dependentes);
+        return permiteSimplificado ? Math.max(legais, DESCONTO_SIMPLIFICADO) : legais;
     }
 
     /** true quando o desconto simplificado é mais vantajoso que as deduções legais. */
@@ -59,17 +68,29 @@ public class CalculadoraIrpf {
     }
 
     public static double baseCalculo(double salario, double inss, int dependentes) {
+        return baseCalculo(salario, inss, dependentes, true);
+    }
+
+    public static double baseCalculo(double salario, double inss, int dependentes, boolean permiteSimplificado) {
         BigDecimal base = Arredondamento.exato(salario)
-                .subtract(Arredondamento.exato(deducaoUtilizada(inss, dependentes)));
+                .subtract(Arredondamento.exato(deducaoUtilizada(inss, dependentes, permiteSimplificado)));
         return base.max(BigDecimal.ZERO).doubleValue();
     }
 
     /** IR do mês, com 2 casas decimais cortadas (sem arredondar). */
     public static double calcular(double salario, double inss, int dependentes) {
+        return calcular(salario, inss, dependentes, true);
+    }
+
+    /**
+     * IR com 2 casas decimais cortadas (sem arredondar). {@code salario} é o rendimento bruto do mês
+     * ou do 13º; o redutor da Lei 15.270/2025 é calculado sobre ele nos dois casos.
+     */
+    public static double calcular(double salario, double inss, int dependentes, boolean permiteSimplificado) {
         if (salario <= ISENTO_ATE) {
             return 0; // redutor da Lei 15.270/2025 zera o imposto
         }
-        double base = baseCalculo(salario, inss, dependentes);
+        double base = baseCalculo(salario, inss, dependentes, permiteSimplificado);
 
         // Faixa por faixa, como o simulador da Receita: cada alíquota incide só sobre a parte da base
         // dentro da sua faixa. Não usa a "parcela a deduzir" porque ela vem arredondada na tabela

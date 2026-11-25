@@ -17,9 +17,22 @@ public record Simulacao(double salario, int dependentes, boolean inssDescontado,
     }
 
     public static Simulacao calcular(double salario, int dependentes, boolean descontarInss) {
+        return montar(salario, dependentes, descontarInss, true);
+    }
+
+    /**
+     * Cálculo do 13º salário (tributação exclusiva na fonte): mesma tabela mensal, com INSS próprio,
+     * mas só INSS + dependentes podem ser deduzidos (sem desconto simplificado).
+     */
+    static Simulacao calcularDecimoTerceiro(double valorBruto, int dependentes) {
+        return montar(valorBruto, dependentes, true, false);
+    }
+
+    private static Simulacao montar(double salario, int dependentes, boolean descontarInss,
+                                    boolean permiteSimplificado) {
         double inss = descontarInss ? CalculadoraInss.calcular(salario) : 0;
-        double base = CalculadoraIrpf.baseCalculo(salario, inss, dependentes);
-        double ir = CalculadoraIrpf.calcular(salario, inss, dependentes);
+        double base = CalculadoraIrpf.baseCalculo(salario, inss, dependentes, permiteSimplificado);
+        double ir = CalculadoraIrpf.calcular(salario, inss, dependentes, permiteSimplificado);
         // líquido em decimal exato: com double, 5500 - 571,51 - 190,47 pode virar 4738,0199...
         double liquido = Arredondamento.exato(salario)
                 .subtract(Arredondamento.exato(inss))
@@ -27,8 +40,8 @@ public record Simulacao(double salario, int dependentes, boolean inssDescontado,
                 .doubleValue();
         return new Simulacao(salario, dependentes, descontarInss, inss,
                 CalculadoraIrpf.deducaoDependentes(dependentes).doubleValue(),
-                CalculadoraIrpf.usaDescontoSimplificado(inss, dependentes),
-                CalculadoraIrpf.deducaoUtilizada(inss, dependentes),
+                permiteSimplificado && CalculadoraIrpf.usaDescontoSimplificado(inss, dependentes),
+                CalculadoraIrpf.deducaoUtilizada(inss, dependentes, permiteSimplificado),
                 base, CalculadoraIrpf.aliquotaDaFaixa(base), ir, liquido);
     }
 

@@ -274,3 +274,10 @@
 .opcao-inss:selected .box { -fx-background-color: -azul; -fx-border-color: -azul; }
 .opcao-inss:selected .mark { -fx-background-color: white; }
 .opcao-inss:focused .box { -fx-border-color: -azul; }
+
+/* Tipo de cálculo: salário mensal ou 13º */
+.opcao-tipo { -fx-text-fill: #344054; -fx-font-size: 13px; }
+.opcao-tipo:selected { -fx-font-weight: bold; }
+.opcao-tipo .radio { -fx-background-color: #b5bdc9, white; -fx-background-insets: 0, 1; -fx-background-radius: 1em; }
+.opcao-tipo:selected .radio { -fx-background-color: -azul, white; }
+.opcao-tipo:selected .dot { -fx-background-color: -azul; }

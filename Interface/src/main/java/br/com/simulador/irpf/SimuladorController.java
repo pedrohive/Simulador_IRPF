@@ -3,6 +3,7 @@ package br.com.simulador.irpf;
 import br.com.simulador.irpf.calculos.Arredondamento;
 import br.com.simulador.irpf.calculos.CalculadoraInss;
 import br.com.simulador.irpf.calculos.CalculadoraIrpf;
+import br.com.simulador.irpf.calculos.DecimoTerceiro;
 import br.com.simulador.irpf.calculos.Simulacao;
 import javafx.animation.FadeTransition;
 import javafx.animation.Interpolator;
@@ -17,6 +18,7 @@ import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
@@ -84,6 +86,10 @@ public class SimuladorController {
     @FXML private TextField campoSalario;
     @FXML private Spinner<Integer> campoDependentes;
     @FXML private CheckBox campoDescontarInss;
+    @FXML private RadioButton opcaoMensal;
+    @FXML private RadioButton opcaoDecimoTerceiro;
+    @FXML private HBox grupoMeses;
+    @FXML private Spinner<Integer> campoMeses;
     @FXML private Label erro;
 
     // Resultado
@@ -114,6 +120,12 @@ public class SimuladorController {
     @FXML private Label resIr;
     @FXML private Label resAliquotaEfetiva;
     @FXML private Label resLiquidoTabela;
+    @FXML private Label itemBruto;
+    @FXML private Label itemLiquido;
+    @FXML private HBox linhaParcela1;
+    @FXML private HBox linhaParcela2;
+    @FXML private Label resParcela1;
+    @FXML private Label resParcela2;
 
     // Página de tabelas
     @FXML private Label avisoTabela;
@@ -225,6 +237,29 @@ public class SimuladorController {
         campoDescontarInss.selectedProperty().addListener((o, a, n) -> {
             if (ultima != null) calcular();
         });
+
+        // 13º: meses trabalhados (1 a 12) só aparecem quando o 13º está escolhido
+        campoMeses.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(
+                1, DecimoTerceiro.MESES_NO_ANO, DecimoTerceiro.MESES_NO_ANO));
+        grupoMeses.visibleProperty().bind(opcaoDecimoTerceiro.selectedProperty());
+        grupoMeses.managedProperty().bind(opcaoDecimoTerceiro.selectedProperty());
+        opcaoDecimoTerceiro.selectedProperty().addListener((o, a, n) -> {
+            atualizarTipoCalculo();
+            if (ultima != null) calcular();
+        });
+        campoMeses.valueProperty().addListener((o, a, n) -> {
+            if (ultima != null) calcular();
+        });
+        atualizarTipoCalculo();
+    }
+
+    /** O 13º é direito de quem é CLT: nele o INSS é sempre descontado, então a opção fica travada. */
+    private void atualizarTipoCalculo() {
+        boolean decimo = opcaoDecimoTerceiro.isSelected();
+        if (decimo) {
+            campoDescontarInss.setSelected(true);
+        }
+        campoDescontarInss.setDisable(decimo);
     }
 
     private static String mascaraCpf(String d) {
@@ -263,7 +298,9 @@ public class SimuladorController {
         campoCpf.clear();
         campoSalario.clear();
         campoDependentes.getValueFactory().setValue(0);
-        ultima = null; // antes de remarcar o INSS, para não recalcular
+        ultima = null; // antes de mexer nas opções, para não recalcular
+        opcaoMensal.setSelected(true);
+        campoMeses.getValueFactory().setValue(DecimoTerceiro.MESES_NO_ANO);
         campoDescontarInss.setSelected(true);
         limparMarcacoes();
         esconderErro();
@@ -332,7 +369,13 @@ public class SimuladorController {
     // =====================================================================
 
     private void exibirResultado(Pessoa p) {
-        Simulacao s = Simulacao.calcular(p.getSalario(), p.getDependentes(), campoDescontarInss.isSelected());
+        boolean decimo = opcaoDecimoTerceiro.isSelected();
+        DecimoTerceiro d = decimo
+                ? DecimoTerceiro.calcular(p.getSalario(), campoMeses.getValue(), p.getDependentes())
+                : null;
+        Simulacao s = decimo
+                ? d.calculo()
+                : Simulacao.calcular(p.getSalario(), p.getDependentes(), campoDescontarInss.isSelected());
         ultima = s;
         double total = total(s);
 
@@ -363,6 +406,25 @@ public class SimuladorController {
         resIr.setText("- " + moeda(s.ir()));
         resAliquotaEfetiva.setText(percentual(s.aliquotaEfetiva()));
         resLiquidoTabela.setText(moeda(s.liquido()));
+
+        // Ajustes de texto quando o cálculo é do 13º
+        textoContribuinte.setText(p.getNome() + "  ·  CPF " + mascaraCpf(p.getCpf())
+                + (decimo ? "  ·  13º salário" : ""));
+        itemBruto.setText(decimo
+                ? "13º bruto (" + d.mesesTrabalhados() + "/12 de " + moeda(d.salarioMensal()) + ")"
+                : "Salário bruto");
+        itemLiquido.setText(decimo ? "13º líquido" : "Salário líquido");
+        if (decimo) {
+            // 13º não tem desconto simplificado: só INSS + dependentes
+            resDeducao.setText("Só INSS + dependentes  - "
+                    + moeda(s.deducaoUtilizada()));
+            resParcela1.setText(moeda(d.primeiraParcela()));
+            resParcela2.setText(moeda(d.segundaParcela()));
+        }
+        for (HBox linha : List.of(linhaParcela1, linhaParcela2)) {
+            linha.setVisible(decimo);
+            linha.setManaged(decimo);
+        }
 
         destacarFaixas(s);
         mostrarResultado(true);
@@ -523,14 +585,18 @@ public class SimuladorController {
                 + "•  Desconto simplificado: " + simplificado + " por mês, usado no lugar de INSS + dependentes quando for maior.\n"
                 + "•  Quem ganha até " + isento + " por mês fica isento de IR (Lei 15.270/2025).\n"
                 + "•  Entre " + isento + " e " + redutor + " o imposto recebe uma redução gradual.\n"
-                + "•  Acima de " + redutor + " vale a tabela progressiva normal.");
+                + "•  Acima de " + redutor + " vale a tabela progressiva normal.\n"
+                + "•  13º salário: calculado separado do mês, com a mesma tabela e o mesmo redutor, mas sem "
+                + "desconto simplificado (só INSS + dependentes). A 1ª parcela sai sem descontos e a 2ª leva "
+                + "todo o INSS e o IR.");
 
         passo1.setText("O INSS é progressivo: cada alíquota (7,5% a 14%) incide só sobre a parte do salário "
                 + "dentro da sua faixa. Acima do teto, o desconto para de aumentar.");
         passo2.setText("Do salário bruto tiramos o INSS e " + deducao + " por dependente, ou o desconto "
                 + "simplificado de " + simplificado + " se ele for maior (como faz a Receita). "
                 + "O que sobra é a base de cálculo do Imposto de Renda.");
-        passo3.setText("A base entra na tabela do IRRF: alíquota da faixa menos a parcela a deduzir. "
+        passo3.setText("A base entra na tabela do IRRF faixa por faixa: cada alíquota incide só sobre a parte "
+                + "da base dentro da sua faixa. "
                 + "Até " + isento + " de salário o IR é zero, e até " + redutor + " há um redutor.");
         passo4.setText("Salário líquido = bruto − INSS − IR. A alíquota efetiva mostra quanto do bruto "
                 + "foi realmente para o Imposto de Renda.");

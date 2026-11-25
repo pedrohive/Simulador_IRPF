@@ -5,9 +5,11 @@
 <?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.Hyperlink?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.RadioButton?>
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.Spinner?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.ToggleGroup?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.HBox?>
@@ -74,6 +76,17 @@
             <TextField fx:id="campoSalario" promptText="4.500,00" onAction="#calcular" GridPane.columnIndex="2" GridPane.rowIndex="1"/>
             <Spinner fx:id="campoDependentes" maxWidth="Infinity" GridPane.columnIndex="3" GridPane.rowIndex="1"/>
           </GridPane>
+          <!-- Tipo de cálculo: salário do mês ou 13º -->
+          <fx:define><ToggleGroup fx:id="grupoTipoCalculo"/></fx:define>
+          <HBox spacing="18" alignment="CENTER_LEFT">
+            <Label text="Calcular" styleClass="rotulo"/>
+            <RadioButton fx:id="opcaoMensal" text="Salário mensal" selected="true" toggleGroup="$grupoTipoCalculo" styleClass="opcao-tipo"/>
+            <RadioButton fx:id="opcaoDecimoTerceiro" text="13º salário" toggleGroup="$grupoTipoCalculo" styleClass="opcao-tipo"/>
+            <HBox fx:id="grupoMeses" spacing="8" alignment="CENTER_LEFT">
+              <Label text="Meses trabalhados no ano" styleClass="rotulo"/>
+              <Spinner fx:id="campoMeses" prefWidth="90"/>
+            </HBox>
+          </HBox>
           <HBox spacing="10" alignment="CENTER_LEFT">
             <CheckBox fx:id="campoDescontarInss" text="Descontar INSS (CLT)" selected="true" styleClass="opcao-inss"/>
             <Label fx:id="erro" styleClass="erro" wrapText="true"/>
@@ -146,7 +159,7 @@
                   <Region HBox.hgrow="ALWAYS"/>
                   <Hyperlink text="Ver tabela de faixas →" styleClass="link" onAction="#irTabela"/>
                 </HBox>
-                <HBox styleClass="linha"><Label text="Salário bruto" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resBruto" styleClass="valor"/></HBox>
+                <HBox styleClass="linha"><Label fx:id="itemBruto" text="Salário bruto" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resBruto" styleClass="valor"/></HBox>
                 <HBox styleClass="linha"><Label text="(−) INSS" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resInss" styleClass="valor-desconto"/></HBox>
                 <HBox styleClass="linha"><Label text="Dependentes" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resDependentes" styleClass="valor"/></HBox>
                 <HBox styleClass="linha"><Label text="(−) Dedução usada no IR" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resDeducao" styleClass="valor-desconto"/></HBox>
@@ -154,7 +167,10 @@
                 <HBox styleClass="linha"><Label text="Alíquota da faixa" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resAliquotaFaixa" styleClass="valor"/></HBox>
                 <HBox styleClass="linha"><Label text="(−) Imposto de Renda" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resIr" styleClass="valor-desconto"/></HBox>
                 <HBox styleClass="linha"><Label text="Alíquota efetiva" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resAliquotaEfetiva" styleClass="valor"/></HBox>
-                <HBox styleClass="linha-total" alignment="CENTER_LEFT"><Label text="Salário líquido" styleClass="total-rotulo"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resLiquidoTabela" styleClass="total-valor"/></HBox>
+                <HBox styleClass="linha-total" alignment="CENTER_LEFT"><Label fx:id="itemLiquido" text="Salário líquido" styleClass="total-rotulo"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resLiquidoTabela" styleClass="total-valor"/></HBox>
+                <!-- Só no 13º: como o valor é pago -->
+                <HBox fx:id="linhaParcela1" styleClass="linha"><Label text="1ª parcela (até 30/11, sem descontos)" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resParcela1" styleClass="valor"/></HBox>
+                <HBox fx:id="linhaParcela2" styleClass="linha"><Label text="2ª parcela (até 20/12, com todo o INSS e IR)" styleClass="item"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="resParcela2" styleClass="valor"/></HBox>
               </VBox>
             </VBox>
           </HBox>
